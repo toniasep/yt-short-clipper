@@ -36,16 +36,24 @@ window.Components.Header = function () {
   aiBtn.dataset.view = 'ai-settings';
   aiBtn.textContent = 'AI Settings';
 
-  const homeBtn = document.createElement('button');
-  homeBtn.className = 'nav-btn';
-  homeBtn.dataset.view = 'home';
-  homeBtn.textContent = 'Home';
+  /* Home button removed */
+
+  const downloadBtn = document.createElement('button');
+  downloadBtn.className = 'nav-btn';
+  downloadBtn.dataset.view = 'download';
+  downloadBtn.textContent = 'Download';
+
+  const clippingBtn = document.createElement('button');
+  clippingBtn.className = 'nav-btn';
+  clippingBtn.dataset.view = 'clipping';
+  clippingBtn.textContent = 'Clipping';
 
   nav.appendChild(aiBtn);
-  nav.appendChild(homeBtn);
+  nav.appendChild(downloadBtn);
+  nav.appendChild(clippingBtn);
 
   header.appendChild(brand);
   header.appendChild(nav);
 
-  return { element: header, icon, buttons: [aiBtn, homeBtn] };
+  return { element: header, icon, buttons: [aiBtn, downloadBtn, clippingBtn] };
 };

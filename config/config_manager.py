@@ -47,7 +47,7 @@ class ConfigManager:
                     }
                 # Add default face tracking mode if not exists
                 if "face_tracking_mode" not in config:
-                    config["face_tracking_mode"] = "opencv"  # "opencv" or "mediapipe"
+                    config["face_tracking_mode"] = "mediapipe"  # "opencv" or "mediapipe"
                 # Add default MediaPipe settings if not exists
                 if "mediapipe_settings" not in config:
                     config["mediapipe_settings"] = {
@@ -101,7 +101,7 @@ class ConfigManager:
                 "opacity": 0.8,
                 "scale": 0.15
             },
-            "face_tracking_mode": "opencv",
+            "face_tracking_mode": "mediapipe",
             "mediapipe_settings": {
                 "lip_activity_threshold": 0.15,
                 "switch_threshold": 0.3,

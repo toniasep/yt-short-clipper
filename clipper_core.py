@@ -74,7 +74,7 @@ class AutoClipperCore:
         system_prompt: str = None,
         watermark_settings: dict = None,
         credit_watermark_settings: dict = None,
-        face_tracking_mode: str = "opencv",
+        face_tracking_mode: str = "mediapipe",
         mediapipe_settings: dict = None,
         ai_providers: dict = None,
         subtitle_language: str = "id",
@@ -269,8 +269,26 @@ KONTEN
 Transcript:
 {transcript}"""
     
-    def process(self, url: str, num_clips: int = 5, add_captions: bool = True, add_hook: bool = True):
-        """Main processing pipeline"""
+    def process(self, url: str, num_clips: int = 5, add_captions: bool = True, add_hook: bool = True, manual_highlights: list = None):
+        """
+        Main processing pipeline
+        
+        Args:
+            url: YouTube video URL
+            num_clips: Number of clips to generate (ignored if manual_highlights provided)
+            add_captions: Whether to add captions
+            add_hook: Whether to add hook intro
+            manual_highlights: Optional list of manual highlight dicts. If provided, skips AI detection.
+                Format: [
+                    {
+                        "start_time": "HH:MM:SS,mmm",
+                        "end_time": "HH:MM:SS,mmm", 
+                        "title": "Clip title",
+                        "hook_text": "Hook text (optional)",
+                        "reason": "Why this segment (optional)"
+                    }
+                ]
+        """
         
         # Step 1: Download video
         self.set_progress("Downloading video...", 0.1)
@@ -282,19 +300,35 @@ Transcript:
         if self.is_cancelled():
             return
         
-        if not srt_path:
-            raise Exception(f"No subtitle found for language: {self.subtitle_language}")
-        
-        # Step 2: Find highlights
-        self.set_progress("Finding highlights...", 0.3)
-        transcript = self.parse_srt(srt_path)
-        highlights = self.find_highlights(transcript, video_info, num_clips)
+        # Step 2: Get highlights (AI or Manual)
+        if manual_highlights:
+            # Manual mode: Validate user-provided highlights
+            self.log("=== Manual Highlights Mode ===")
+            self.log(f"Validating {len(manual_highlights)} user-provided highlights...")
+            self.set_progress("Validating manual highlights...", 0.3)
+            
+            highlights = self._validate_manual_highlights(manual_highlights)
+            
+            if not highlights:
+                raise Exception("No valid highlights after validation! Please check your timestamp format and required fields.")
+            
+            self.log(f"✅ {len(highlights)} valid highlights ready for processing\n")
+            
+        else:
+            # AI mode: Auto-detect highlights
+            if not srt_path:
+                raise Exception(f"No subtitle found for language: {self.subtitle_language}")
+            
+            self.log("=== AI Highlight Detection Mode ===")
+            self.set_progress("Finding highlights with AI...", 0.3)
+            transcript = self.parse_srt(srt_path)
+            highlights = self.find_highlights(transcript, video_info, num_clips)
+            
+            if not highlights:
+                raise Exception("No valid highlights found by AI!")
         
         if self.is_cancelled():
             return
-        
-        if not highlights:
-            raise Exception("No valid highlights found!")
         
         # Step 3: Process each clip
         total_clips = len(highlights)
@@ -309,6 +343,52 @@ Transcript:
         
         self.set_progress("Complete!", 1.0)
         self.log(f"\n✅ Created {total_clips} clips in: {self.output_dir}")
+    
+    def _validate_manual_highlights(self, highlights: list) -> list:
+        """
+        Validate manual highlights from user input
+        
+        Args:
+            highlights: List of highlight dicts
+            
+        Returns:
+            List of validated highlights with auto-filled defaults
+        """
+        valid_highlights = []
+        
+        for i, h in enumerate(highlights, 1):
+            # Validate required fields
+            required_fields = ["start_time", "end_time", "title"]
+            missing_fields = [f for f in required_fields if f not in h or not h[f]]
+            
+            if missing_fields:
+                self.log(f"  ⚠ Highlight {i}: Missing required fields {missing_fields}, skipped")
+                continue
+            
+            # Calculate duration
+            try:
+                duration = self.parse_timestamp(h["end_time"]) - self.parse_timestamp(h["start_time"])
+                h["duration_seconds"] = round(duration, 1)
+                
+                if duration <= 0:
+                    self.log(f"  ⚠ Highlight {i} '{h['title']}': Invalid duration ({duration:.1f}s), end_time must be after start_time")
+                    continue
+                
+                # Auto-fill optional fields
+                if "hook_text" not in h or not h["hook_text"]:
+                    h["hook_text"] = h["title"]
+                
+                if "reason" not in h:
+                    h["reason"] = "User-defined highlight"
+                
+                valid_highlights.append(h)
+                self.log(f"  ✓ Highlight {i}: {h['title']} ({duration:.1f}s)")
+                
+            except Exception as e:
+                self.log(f"  ⚠ Highlight {i} '{h.get('title', '?')}': Error parsing timestamps - {e}")
+                continue
+        
+        return valid_highlights
     
     def download_video(self, url: str) -> tuple:
         """Download video and subtitle with progress using yt-dlp module or executable"""

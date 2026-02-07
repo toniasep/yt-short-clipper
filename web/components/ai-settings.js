@@ -91,13 +91,13 @@ window.Components.AiSettingsView = function () {
     return field;
   }
 
-  const hf = makeCard('Highlight Finder');
+  /* Highlight Finder removed as per request */
   const cm = makeCard('Caption Maker (Whisper)');
   const hm = makeCard('Hook Maker (TTS)');
   hm.model.innerHTML = '<option value="tts-1">tts-1</option><option value="tts-1-hd">tts-1-hd</option>';
   cm.model.innerHTML = '<option value="whisper-1">whisper-1</option>';
 
-  grid.appendChild(hf.card);
+  /* hf card removed */
   grid.appendChild(cm.card);
   grid.appendChild(hm.card);
 
@@ -126,13 +126,7 @@ window.Components.AiSettingsView = function () {
     element: section,
     fields: {
       providerButtons: [providerYt, providerOpenai, providerCustom],
-      hfUrl: hf.url,
-      hfUrlField: hf.urlField,
-      hfKey: hf.key,
-      hfEye: hf.eye,
-      hfModel: hf.model,
-      hfValidateBtn: hf.validateBtn,
-      hfValidateStatus: hf.validateStatus,
+      /* hf fields removed */
       cmUrl: cm.url,
       cmUrlField: cm.urlField,
       cmKey: cm.key,

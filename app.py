@@ -71,8 +71,17 @@ class YTShortClipperApp(ctk.CTk):
         self.cookies_path = COOKIES_FILE  # NEW: Store cookies path
         
         self.title("YT Short Clipper")
-        self.geometry("780x620")
-        self.resizable(False, False)
+        
+        # Get screen dimensions and set window to maximized
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        self.geometry(f"{screen_width}x{screen_height}+0+0")
+        
+        # Make it resizable for better flexibility
+        self.resizable(True, True)
+        
+        # Start maximized (works on Windows)
+        self.state('zoomed')
         
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
@@ -251,7 +260,7 @@ class YTShortClipperApp(ctk.CTk):
             anchor="w").pack(fill="x", pady=(3, 3))
         
         clips_input_frame = ctk.CTkFrame(left_col, fg_color="transparent")
-        clips_input_frame.pack(fill="x", pady=(0, 5))
+        clips_input_frame.pack(fill="x", pady=(0, 8))
         
         self.clips_var = ctk.StringVar(value="5")
         clips_entry = ctk.CTkEntry(clips_input_frame, textvariable=self.clips_var, width=60, height=32,
@@ -260,6 +269,79 @@ class YTShortClipperApp(ctk.CTk):
         
         ctk.CTkLabel(clips_input_frame, text="(1-10)", font=ctk.CTkFont(size=10), 
             text_color="gray").pack(side="left")
+        
+        # === NEW: Mode Selection ===
+        ctk.CTkLabel(left_col, text="Detection Mode", font=ctk.CTkFont(size=11, weight="bold"), 
+            anchor="w").pack(fill="x", pady=(3, 3))
+        
+        mode_frame = ctk.CTkFrame(left_col, fg_color="transparent")
+        mode_frame.pack(fill="x", pady=(0, 8))
+        
+        self.mode_var = ctk.StringVar(value="ai")
+        
+        ai_radio = ctk.CTkRadioButton(mode_frame, text="🤖 AI Detection", 
+            variable=self.mode_var, value="ai", font=ctk.CTkFont(size=10),
+            command=self.on_mode_change)
+        ai_radio.pack(side="left", padx=(0, 10))
+        
+        manual_radio = ctk.CTkRadioButton(mode_frame, text="✋ Manual Input", 
+            variable=self.mode_var, value="manual", font=ctk.CTkFont(size=10),
+            command=self.on_mode_change)
+        manual_radio.pack(side="left")
+        
+        # === Manual Highlights Input (hidden by default) ===
+        self.manual_frame = ctk.CTkFrame(left_col, fg_color=("#2b2b2b", "#1a1a1a"), corner_radius=8)
+        # Don't pack yet, will show when manual mode selected
+        
+        manual_label_frame = ctk.CTkFrame(self.manual_frame, fg_color="transparent")
+        manual_label_frame.pack(fill="x", padx=10, pady=(8, 3))
+        
+        ctk.CTkLabel(manual_label_frame, text="Highlights JSON", 
+            font=ctk.CTkFont(size=10, weight="bold"), anchor="w").pack(side="left")
+        
+        # Help link
+        help_link = ctk.CTkLabel(manual_label_frame, text="📖 Format Guide", 
+            font=ctk.CTkFont(size=9), text_color=("#3B8ED0", "#1F6AA5"), cursor="hand2")
+        help_link.pack(side="right")
+        help_link.bind("<Button-1>", lambda e: self.show_manual_help())
+        
+        # JSON textarea with line numbers feel
+        self.manual_highlights_text = ctk.CTkTextbox(self.manual_frame, 
+            width=280, height=105,
+            fg_color=("#1a1a1a", "#0a0a0a"), 
+            border_width=1,
+            border_color=("#3a3a3a", "#2a2a2a"),
+            font=ctk.CTkFont(family="Consolas", size=9))
+        self.manual_highlights_text.pack(fill="both", expand=True, padx=10, pady=(0, 5))
+        
+        # Set placeholder text
+        placeholder_json = """[
+  {
+    "start_time": "00:01:25,000",
+    "end_time": "00:02:50,000",
+    "title": "Clip Title Here"
+  }
+]"""
+        self.manual_highlights_text.insert("1.0", placeholder_json)
+        
+        # Buttons for manual mode
+        manual_btn_frame = ctk.CTkFrame(self.manual_frame, fg_color="transparent")
+        manual_btn_frame.pack(fill="x", padx=10, pady=(0, 8))
+        
+        validate_btn = ctk.CTkButton(manual_btn_frame, text="✓ Validate", width=90, height=26,
+            fg_color=("#3a3a3a", "#2a2a2a"), hover_color=("#4a4a4a", "#3a3a3a"),
+            font=ctk.CTkFont(size=9), command=self.validate_manual_json)
+        validate_btn.pack(side="left", padx=(0, 5))
+        
+        clear_btn = ctk.CTkButton(manual_btn_frame, text="✗ Clear", width=90, height=26,
+            fg_color=("#3a3a3a", "#2a2a2a"), hover_color=("#4a4a4a", "#3a3a3a"),
+            font=ctk.CTkFont(size=9), command=self.clear_manual_json)
+        clear_btn.pack(side="left", padx=(0, 5))
+        
+        example_btn = ctk.CTkButton(manual_btn_frame, text="📋 Example", width=90, height=26,
+            fg_color=("#3a3a3a", "#2a2a2a"), hover_color=("#4a4a4a", "#3a3a3a"),
+            font=ctk.CTkFont(size=9), command=self.load_example_json)
+        example_btn.pack(side="left")
         
         # Right column - Thumbnail 16:9
         right_col = ctk.CTkFrame(top_row, fg_color="transparent")
@@ -891,6 +973,171 @@ class YTShortClipperApp(ctk.CTk):
         # Update start button state
         self.update_start_button_state()
     
+    def on_mode_change(self):
+        """Handle mode toggle between AI and Manual"""
+        mode = self.mode_var.get()
+        
+        if mode == "manual":
+            # Show manual input frame
+            self.manual_frame.pack(fill="x", pady=(0, 8))
+        else:
+            # Hide manual input frame
+            self.manual_frame.pack_forget()
+    
+    def validate_manual_json(self):
+        """Validate manual highlights JSON"""
+        json_text = self.manual_highlights_text.get("1.0", "end-1c").strip()
+        
+        if not json_text:
+            messagebox.showerror("Validation Error", "JSON input is empty!")
+            return False
+        
+        try:
+            highlights = json.loads(json_text)
+            
+            if not isinstance(highlights, list):
+                messagebox.showerror("Validation Error", "JSON must be an array (list)!")
+                return False
+            
+            if len(highlights) == 0:
+                messagebox.showerror("Validation Error", "Highlights array is empty!")
+                return False
+            
+            # Validate each highlight
+            for i, h in enumerate(highlights, 1):
+                required = ["start_time", "end_time", "title"]
+                missing = [f for f in required if f not in h or not h[f]]
+                
+                if missing:
+                    messagebox.showerror("Validation Error", 
+                        f"Highlight {i} missing required fields: {', '.join(missing)}\n\n" +
+                        "Required: start_time, end_time, title")
+                    return False
+                
+                # Check timestamp format
+                for field in ["start_time", "end_time"]:
+                    if not re.match(r'^\d{2}:\d{2}:\d{2},\d{3}$', h[field]):
+                        messagebox.showerror("Validation Error", 
+                            f"Highlight {i}: Invalid {field} format!\n\n" +
+                            f"Got: {h[field]}\n" +
+                            "Expected: HH:MM:SS,mmm (e.g., 00:01:25,000)")
+                        return False
+            
+            messagebox.showinfo("Validation Success", 
+                f"✓ Valid JSON with {len(highlights)} highlight(s)!\n\nReady to process.")
+            return True
+            
+        except json.JSONDecodeError as e:
+            messagebox.showerror("JSON Parse Error", 
+                f"Invalid JSON format!\n\n{str(e)}\n\n" +
+                "Make sure your JSON is properly formatted.")
+            return False
+    
+    def clear_manual_json(self):
+        """Clear manual highlights textarea"""
+        self.manual_highlights_text.delete("1.0", "end")
+    
+    def load_example_json(self):
+        """Load example JSON into textarea"""
+        example = """[
+  {
+    "start_time": "00:01:25,000",
+    "end_time": "00:02:50,000",
+    "title": "Realita Rumah Lantai Tanah",
+    "hook_text": "Rumah saya lantainya masihok tanah kalau banjir jadi lumpur"
+  },
+  {
+    "start_time": "00:03:00,000",
+    "end_time": "00:04:30,000",
+    "title": "Cerita Kocak",
+    "hook_text": "Lagi berak malah ketabrak kelelawar"
+  }
+]"""
+        self.manual_highlights_text.delete("1.0", "end")
+        self.manual_highlights_text.insert("1.0", example)
+    
+    def show_manual_help(self):
+        """Show manual highlights format help dialog"""
+        import webbrowser
+        
+        # Create help dialog
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Manual Highlights Format Guide")
+        dialog.geometry("550x400")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        
+        # Center dialog
+        dialog.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (dialog.winfo_width() // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Content frame
+        content = ctk.CTkFrame(dialog, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Title
+        ctk.CTkLabel(content, text="📖 Manual Highlights JSON Format",
+            font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(0, 10))
+        
+        # Help text
+        help_text = ctk.CTkTextbox(content, wrap="word", 
+            fg_color=("#2b2b2b", "#1a1a1a"), height=250)
+        help_text.pack(fill="both", expand=True, pady=(0, 10))
+        
+        help_content = """REQUIRED FIELDS:
+• start_time - Format: HH:MM:SS,mmm (e.g., 00:01:25,000)
+• end_time - Format: HH:MM:SS,mmm (e.g., 00:02:50,000)
+• title - Clip title (string)
+
+OPTIONAL FIELDS:
+• hook_text - Text for intro hook (defaults to title)
+• reason - Why this segment is good (for reference only)
+
+FORMAT EXAMPLE:
+[
+  {
+    "start_time": "00:01:25,000",
+    "end_time": "00:02:50,000",
+    "title": "Clip Title Here",
+    "hook_text": "Hook text here",
+    "reason": "Why this is viral"
+  }
+]
+
+TIPS:
+✓ Use comma (,) not dot (.) in milliseconds
+✓ Always use HH:MM:SS format (00:01:25 not 1:25)
+✓ end_time must be after start_time
+✓ Duration: no limits (AI mode: 58-120s)
+✓ Validate before processing!
+
+For more details, click "View Full Documentation" below.
+"""
+        help_text.insert("1.0", help_content)
+        help_text.configure(state="disabled")
+        
+        # Buttons
+        btn_frame = ctk.CTkFrame(content, fg_color="transparent")
+        btn_frame.pack(fill="x")
+        
+        doc_btn = ctk.CTkButton(btn_frame, text="📖 View Full Documentation",
+            height=35, fg_color=("#3B8ED0", "#1F6AA5"),
+            hover_color=("#2E7AB8", "#16527D"),
+            command=lambda: [
+                webbrowser.open("https://github.com/jipraks/yt-short-clipper/blob/master/MANUAL_HIGHLIGHTS.md"),
+                dialog.destroy()
+            ])
+        doc_btn.pack(side="left", expand=True, fill="x", padx=(0, 5))
+        
+        close_btn = ctk.CTkButton(btn_frame, text="Close",
+            height=35, fg_color=("#6c757d", "#5a6268"),
+            hover_color=("#5a6268", "#4e555b"),
+            command=dialog.destroy)
+        close_btn.pack(side="right", expand=True, fill="x", padx=(5, 0))
+    
     def load_subtitles(self, url: str):
         """Fetch available subtitles for the video"""
         def fetch():
@@ -1104,50 +1351,11 @@ class YTShortClipperApp(ctk.CTk):
             try:
                 from openai import OpenAI
                 
-                # Validate Highlight Finder (required for all processing)
-                ai_providers = self.config.get("ai_providers", {})
-                hf_config = ai_providers.get("highlight_finder", {})
-                hf_api_key = hf_config.get("api_key", "").strip()
-                hf_base_url = hf_config.get("base_url", "https://api.openai.com/v1").strip()
-                hf_model = hf_config.get("model", "").strip()
-                
-                if not hf_api_key or not hf_model:
-                    self.after(0, lambda: self._on_validation_failed(
-                        "Highlight Finder API is not configured!\n\n" +
-                        "This is required to find viral moments in videos.\n\n" +
-                        "Please configure it in Settings → AI API Settings → Highlight Finder"))
-                    return
-                
-                # Test Highlight Finder API
-                try:
-                    hf_client = OpenAI(api_key=hf_api_key, base_url=hf_base_url)
-                    
-                    # Try to list models to verify API key and model availability
-                    try:
-                        hf_models = hf_client.models.list()
-                        hf_available = [m.id for m in hf_models.data]
-                        
-                        if hf_model not in hf_available:
-                            self.after(0, lambda: self._on_validation_failed(
-                                f"Highlight Finder model '{hf_model}' is not available!\n\n" +
-                                "Please check your configuration in:\n" +
-                                "Settings → AI API Settings → Highlight Finder"))
-                            return
-                    except Exception as list_error:
-                        # If models.list() fails, the API key might still be valid
-                        # Some providers don't support models.list()
-                        # Just verify the API key is not empty and continue
-                        pass
-                    
-                except Exception as e:
-                    self.after(0, lambda: self._on_validation_failed(
-                        f"Highlight Finder API validation failed!\n\n" +
-                        f"Error: {str(e)[:100]}\n\n" +
-                        "Please check your configuration in:\n" +
-                        "Settings → AI API Settings → Highlight Finder"))
-                    return
+                # Skip Highlight Finder validation - let it fail at runtime if needed
+                # This allows both AI and Manual mode to proceed without pre-validation
                 
                 # Validate Caption Maker if captions are enabled
+                ai_providers = self.config.get("ai_providers", {})
                 if self.caption_var.get():
                     cm_config = ai_providers.get("caption_maker", {})
                     cm_api_key = cm_config.get("api_key", "").strip()
@@ -1246,10 +1454,7 @@ class YTShortClipperApp(ctk.CTk):
         """Start processing after validation passed"""
         self.start_btn.configure(state="normal", text="Generate Shorts")
         
-        # Legacy validation (backward compatibility)
-        if not self.client:
-            messagebox.showerror("Error", "Configure API settings first!\nClick ⚙️ button.")
-            return
+        # Skip legacy API validation - let it proceed and fail at runtime if needed
         
         url = self.url_var.get().strip()
         if not extract_video_id(url):
@@ -1271,6 +1476,20 @@ class YTShortClipperApp(ctk.CTk):
         subtitle_selection = self.subtitle_var.get()
         subtitle_lang = subtitle_selection.split(" - ")[0] if " - " in subtitle_selection else "id"
         
+        # Get manual highlights if in manual mode
+        manual_highlights = None
+        mode = self.mode_var.get()
+        if mode == "manual":
+            json_text = self.manual_highlights_text.get("1.0", "end-1c").strip()
+            try:
+                manual_highlights = json.loads(json_text)
+                if not isinstance(manual_highlights, list) or len(manual_highlights) == 0:
+                    messagebox.showerror("Error", "Invalid manual highlights JSON!")
+                    return
+            except json.JSONDecodeError as e:
+                messagebox.showerror("Error", f"Invalid JSON format!\n\n{str(e)}")
+                return
+        
         # Reset UI
         self.processing = True
         self.cancelled = False
@@ -1284,9 +1503,9 @@ class YTShortClipperApp(ctk.CTk):
         output_dir = self.config.get("output_dir", str(OUTPUT_DIR))
         model = self.config.get("model", "gpt-4.1")
         
-        threading.Thread(target=self.run_processing, args=(url, num_clips, output_dir, model, add_captions, add_hook, subtitle_lang), daemon=True).start()
+        threading.Thread(target=self.run_processing, args=(url, num_clips, output_dir, model, add_captions, add_hook, subtitle_lang, manual_highlights), daemon=True).start()
     
-    def run_processing(self, url, num_clips, output_dir, model, add_captions, add_hook, subtitle_lang="id"):
+    def run_processing(self, url, num_clips, output_dir, model, add_captions, add_hook, subtitle_lang="id", manual_highlights=None):
         try:
             from clipper_core import AutoClipperCore
             
@@ -1306,8 +1525,8 @@ class YTShortClipperApp(ctk.CTk):
             watermark_settings = self.config.get("watermark", {"enabled": False})
             credit_watermark_settings = self.config.get("credit_watermark", {"enabled": False})
             
-            # Get face tracking mode from config (set in settings page)
-            face_tracking_mode = self.config.get("face_tracking_mode", "opencv")
+            # Get face tracking mode from config (force mediapipe for best quality)
+            face_tracking_mode = self.config.get("face_tracking_mode", "mediapipe")
             
             mediapipe_settings = self.config.get("mediapipe_settings", {
                 "lip_activity_threshold": 0.15,
@@ -1342,7 +1561,7 @@ class YTShortClipperApp(ctk.CTk):
             if gpu_settings.get("enabled", False):
                 core.enable_gpu_acceleration(True)
             
-            core.process(url, num_clips, add_captions=add_captions, add_hook=add_hook)
+            core.process(url, num_clips, add_captions=add_captions, add_hook=add_hook, manual_highlights=manual_highlights)
             if not self.cancelled:
                 self.after(0, self.on_complete)
         except Exception as e:

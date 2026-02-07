@@ -1,0 +1,26 @@
+[
+  {
+    "start": 10,
+    "end": 25,
+    "title": "Pembukaan Menarik",
+    "reason": "Intro yang engaging dan menarik perhatian"
+  },
+  {
+    "start": 45,
+    "end": 60,
+    "title": "Highlight Utama",
+    "reason": "Momen paling viral dan shareable"
+  },
+  {
+    "start": 120,
+    "end": 135,
+    "title": "Klimaks",
+    "reason": "Peak moment yang bikin penonton penasaran"
+  },
+  {
+    "start": 180,
+    "end": 195,
+    "title": "Penutup",
+    "reason": "Call-to-action yang kuat"
+  }
+]
